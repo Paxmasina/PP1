@@ -1,0 +1,309 @@
+package rs.ac.bg.etf.pp1;
+
+import java_cup.runtime.*;
+import org.apache.log4j.*;
+import rs.ac.bg.etf.pp1.ast.*;
+
+parser code {:
+	
+	boolean errorDetected = false;
+	
+	Logger log = Logger.getLogger(getClass());
+   
+   
+    // slede redefinisani metodi za prijavu gresaka radi izmene teksta poruke
+     
+    public void report_fatal_error(String message, Object info) throws java.lang.Exception {
+      done_parsing();
+      report_error(message, info);
+    }
+  
+    public void syntax_error(Symbol cur_token) {
+        report_error("\nSintaksna greska", cur_token);
+    }
+  
+    public void unrecovered_syntax_error(Symbol cur_token) throws java.lang.Exception {
+        report_fatal_error("Fatalna greska, parsiranje se ne moze nastaviti", cur_token);
+    }
+
+    public void report_error(String message, Object info) {
+    	errorDetected = true;
+    	StringBuilder msg = new StringBuilder(message); 
+    	if (info instanceof Symbol)
+            msg.append (" na liniji ").append(((Symbol)info).left);
+        log.error(msg.toString());
+    }
+    
+    public void report_info(String message, Object info) {
+    	StringBuilder msg = new StringBuilder(message); 
+    	if (info instanceof Symbol)
+            msg.append (" na liniji ").append(((Symbol)info).left);
+        log.info(msg.toString());
+    }
+    
+:}
+
+scan with {:
+	Symbol s = this.getScanner().next_token();
+	if (s != null && s.value != null) 
+		log.info(s.toString() + " " + s.value.toString());
+	return s;
+:}
+
+
+terminal PROGRAM, BREAK, CLASS, INTERFACE, ENUM, ELSE, CONST, IF, NEW, PRINT, READ;
+terminal RETURN, VOID, FOR, EXTENDS, IMPLEMENTS, CONTINUE, THIS;
+terminal PLUS, MINUS, MUL, DIV, MOD, EQUAL, NOT_EQUAL, GREATER, GREATER_EQUAL, LESS, LESS_EQUAL;
+terminal AND, OR, ASSIGN, INCREMENT, DECREMENT, SEMI, COMMA, PERIOD, LEFT_PARENTHES, RIGHT_PARENTHES;
+terminal LEFT_BRACKET, RIGHT_BRACKET, LEFT_BRACE, RIGHT_BRACE, VALUES;
+terminal String IDENT;
+terminal Character CHAR;
+terminal Boolean BOOL;
+terminal Integer NUMBER;
+
+nonterminal DeclList, Decl, MethodDeclList, MethodDecl, MethodPart, FormPars;
+nonterminal FormParsList, FormParsDecl, ConstDecl, ConstDeclList, ConstDeclPart, VarDeclarations;
+nonterminal VarDecl, VarDeclList, VarDeclPart, ClassDecl, ClassName, BaseClass, ImplementedClassList, ImplementedClass;
+nonterminal EnumDecl, EnumDeclList, InterfaceDecl, InterfaceMethodDeclList, InterfaceMethodDecl, InterfaceMethodTypeName;
+nonterminal InterfaceMethodPart, StatementList, Statement, DesignatorStatement, ActPars, ActParsList, Condition, CondTerm;
+nonterminal CondFact, Assignop, Relop, Addop, Mulop, MatchedStatement, UnmatchedStatement;
+nonterminal MethodVarDeclarations, MethodVarDecl, MethodVarDeclList, MethodVarDeclListPart, StartOfFunc, StartOfVaules;
+
+nonterminal rs.etf.pp1.symboltable.concepts.Obj Program, ProgramName, ConstValue, EnumName, EnumDeclPart, Designator, MethodTypeName;
+nonterminal rs.etf.pp1.symboltable.concepts.Struct Type, Term, Expr, Factor;
+
+Program ::= (Program) PROGRAM ProgramName DeclList LEFT_BRACE MethodDeclList RIGHT_BRACE;
+
+ProgramName ::= (ProgramName) IDENT:progName;
+
+DeclList ::= (Declarations) DeclList Decl
+		 |	 (NoDeclarations) /* epsilon */
+		 ;
+		 
+Decl ::= (ConstDcls) ConstDecl
+	|	 (VarDecls) VarDecl
+	|	 (ClassDeclarations) ClassDecl
+	|	 (EnumDcls) EnumDecl
+	|	 (InterfaceDeclarations) InterfaceDecl
+	;
+	
+MethodDeclList ::= (MethodDeclarations) MethodDeclList MethodDecl
+			   |   (NoMethodDecl) /* epsilon */
+			   ;			  
+			  
+MethodDecl ::= (MethodDeclaration) MethodTypeName MethodPart;
+
+MethodTypeName ::= (ReturnType) Type IDENT:MethodName
+			   |   (VoidType)   VOID IDENT:MethodName
+			   ;
+			   
+MethodPart ::= (MethodPrt) LEFT_PARENTHES FormPars RIGHT_PARENTHES MethodVarDeclarations LEFT_BRACE StatementList RIGHT_BRACE;
+
+MethodVarDeclarations ::= (MethodVarDecls)MethodVarDeclarations MethodVarDecl
+				|
+				(NoMethodVarDeclaration)/* epsilon */
+			 	;
+			 	
+MethodVarDecl ::= (MethodVarDecl) Type MethodVarDeclList SEMI;
+
+MethodVarDeclList ::= (MethodVarDeclsList) MethodVarDeclList COMMA MethodVarDeclListPart
+			   |
+			   (SingleMethodVarDecl) MethodVarDeclListPart
+			   ;
+			   
+MethodVarDeclListPart ::= (MethodVarDeclaration) IDENT:varName
+ 			    |
+ 			    (MethodArrayVarDeclaration)IDENT:arrayVarName LEFT_BRACKET RIGHT_BRACKET
+ 			    ;
+
+FormPars ::= (FormalParameters) FormParsList
+		 |   (NoFormalParemters) /* epsilon */
+		 ;
+		 
+FormParsList ::= (ListOfFormalParameters) FormParsList COMMA FormParsDecl
+			 |	 (SingleParam) FormParsDecl
+			 ;
+
+FormParsDecl ::= (VarFormParam) Type IDENT:varParamName
+			 |   (ArrayVarParamName) Type IDENT:arrayVarParamName LEFT_BRACKET RIGHT_BRACKET 
+			 ;
+			 
+ConstDecl ::= (ConstantDeclarations) CONST Type ConstDeclList SEMI;
+
+Type ::= (Type) IDENT:typeName;
+
+ConstDeclList ::= (ConstDeclarations) ConstDeclList COMMA ConstDeclPart
+			|	  (SingleConst) ConstDeclPart
+			;
+			
+ConstDeclPart ::= (ConstDeclaration) IDENT:constName ASSIGN ConstValue;
+
+ConstValue ::= (NumConst) NUMBER:num
+			|  (CharConst) CHAR:cha
+			|  (BoolConst) BOOL:bool
+			;
+			
+
+VarDecl ::= (VarDecleration) Type VarDeclList SEMI;
+
+VarDeclList ::= (VarDeclerationsList) VarDeclList COMMA VarDeclPart
+			|   (SingleVar) VarDeclPart
+			;
+
+VarDeclPart ::= (SimpleVarDeclaration) IDENT:varName
+			|	(ArrayVarDeclaration) IDENT:arrayName LEFT_BRACKET RIGHT_BRACKET
+			|   (ErrorVarDeclaration) error:e {: parser.log.debug("Uspesan oporavak od greske na liniji " + eleft + " pri definiciji globalne promenljive."); :}
+ 			;
+				
+ClassDecl ::= (NoExtandNoImplementNoMethod) CLASS ClassName LEFT_BRACE VarDeclarations RIGHT_BRACE
+		  |	  (NoExtendNoImplementYesMethod) CLASS ClassName LEFT_BRACE VarDeclarations LEFT_BRACE MethodDeclList RIGHT_BRACE RIGHT_BRACE   
+		  |	  (NoExtandYesImplementNoMethod) CLASS ClassName IMPLEMENTS ImplementedClassList LEFT_BRACE VarDeclarations RIGHT_BRACE
+		  |	  (NoExtandYesImplementYesMethod) CLASS ClassName IMPLEMENTS ImplementedClassList LEFT_BRACE VarDeclarations LEFT_BRACE MethodDeclList RIGHT_BRACE RIGHT_BRACE
+		  |   (YesExtandNoImplementNoMethod) CLASS ClassName EXTENDS BaseClass LEFT_BRACE VarDeclarations RIGHT_BRACE
+		  |   (YesExtandNoImplementYesMethod) CLASS ClassName EXTENDS BaseClass LEFT_BRACE VarDeclarations LEFT_BRACE MethodDeclList RIGHT_BRACE RIGHT_BRACE
+		  |   (YesExtandYesImplementNoMethod) CLASS ClassName EXTENDS BaseClass IMPLEMENTS ImplementedClassList LEFT_BRACE VarDeclarations RIGHT_BRACE
+		  |   (YesExtandYesImplementYesMethod) CLASS ClassName EXTENDS BaseClass IMPLEMENTS ImplementedClassList LEFT_BRACE VarDeclarations LEFT_BRACE MethodDeclList RIGHT_BRACE RIGHT_BRACE
+		  ;
+		  
+ClassName ::= (ClassName) IDENT:name;
+
+BaseClass ::= (BaseClass) Type:baseClassType;
+
+ImplementedClassList ::= (ImplementedClasses) ImplementedClassList COMMA ImplementedClass
+					 |   (SingleImplementedClass) ImplementedClass
+					 ;
+
+ImplementedClass ::= (ImplementedClass) Type;
+
+EnumDecl ::= (EnumDeclarations) ENUM EnumName:name LEFT_BRACE EnumDeclList RIGHT_BRACE;
+
+EnumName ::= (EnumName) IDENT:enumName;
+
+EnumDeclList ::= (EnumDeclarationsList) EnumDeclList COMMA EnumDeclPart
+			 |   (SingleEnumDeclaration) EnumDeclPart
+			 ;
+			 
+EnumDeclPart ::= (EnumDeclarationAssign) IDENT:name ASSIGN NUMBER:value
+			 |   (EnumDeclaration) IDENT:name
+			 ;
+
+InterfaceDecl ::= (InterfaceDeclaration) INTERFACE IDENT LEFT_BRACE InterfaceMethodDeclList RIGHT_BRACE;
+
+InterfaceMethodDeclList ::= (InterfaceMethodDeclarations) InterfaceMethodDeclList InterfaceMethodDecl;			  
+			  
+InterfaceMethodDecl ::= (InterfaceMethodDeclaration) InterfaceMethodTypeName InterfaceMethodPart;
+
+InterfaceMethodTypeName ::= (RtrnType) Type IDENT:MethodName
+			   |   (VoidTypee)   VOID IDENT:MethodName
+			   ;
+			   
+InterfaceMethodPart ::= (IntMethodPart) LEFT_PARENTHES FormPars RIGHT_PARENTHES SEMI; 
+
+StatementList ::= (Statements) StatementList Statement
+			  |   (NoStatement)   /* epsilon */
+			  ;
+
+Statement ::= (MatchedStmt) MatchedStatement 
+		  |   (UnmatchedStmt) UnmatchedStatement
+		  ;			  
+
+UnmatchedStatement ::= (UnmatchedIf) IF LEFT_PARENTHES Condition RIGHT_PARENTHES Statement
+				   |   (UnmatchedIfElse) IF LEFT_PARENTHES Condition RIGHT_PARENTHES MatchedStatement ELSE UnmatchedStatement 
+				   ;
+				  
+MatchedStatement ::= (DesStatement) DesignatorStatement SEMI
+		  |   (MatchedIfElseStatement) IF LEFT_PARENTHES Condition RIGHT_PARENTHES MatchedStatement ELSE MatchedStatement
+		  |   (ForStatementA) FOR LEFT_PARENTHES SEMI SEMI RIGHT_PARENTHES MatchedStatement
+		  |   (ForStatementB) FOR LEFT_PARENTHES SEMI SEMI DesignatorStatement RIGHT_PARENTHES MatchedStatement
+		  |   (ForStatementC) FOR LEFT_PARENTHES SEMI Condition SEMI RIGHT_PARENTHES MatchedStatement
+		  |   (ForStatementD) FOR LEFT_PARENTHES SEMI Condition SEMI DesignatorStatement RIGHT_PARENTHES MatchedStatement
+		  |   (ForStatementE) FOR LEFT_PARENTHES DesignatorStatement SEMI SEMI RIGHT_PARENTHES MatchedStatement
+		  |   (ForStatementF) FOR LEFT_PARENTHES DesignatorStatement SEMI SEMI DesignatorStatement RIGHT_PARENTHES MatchedStatement
+		  |   (ForStatementG) FOR LEFT_PARENTHES DesignatorStatement SEMI Condition SEMI RIGHT_PARENTHES MatchedStatement
+		  |   (ForStatementH) FOR LEFT_PARENTHES DesignatorStatement SEMI Condition SEMI DesignatorStatement RIGHT_PARENTHES MatchedStatement
+		  |   (BreakStatement)  BREAK SEMI
+		  |	  (ContinueStmnt)   CONTINUE SEMI
+		  |   (ReturnExpr) 		RETURN Expr SEMI
+		  |   (ReturnStatement) RETURN SEMI
+		  |   (ReadStatement)   READ LEFT_PARENTHES Designator RIGHT_PARENTHES SEMI
+		  |   (PrintStatement)  PRINT LEFT_PARENTHES Expr RIGHT_PARENTHES SEMI
+		  |   (PrintConstStmt)  PRINT LEFT_PARENTHES Expr COMMA NUMBER RIGHT_PARENTHES SEMI
+		  |   (Stmt)       LEFT_BRACE StatementList RIGHT_BRACE
+		  ;
+		  	  
+		  
+DesignatorStatement ::= (Assignment) Designator Assignop Expr
+					|   (FuncCall)  Designator StartOfFunc LEFT_PARENTHES ActPars RIGHT_PARENTHES
+		  			|   (DesignatorInc) Designator INCREMENT
+		  			|   (DesignatorDec) Designator DECREMENT
+		  			|   (AssignmentError) error:e {: parser.log.debug("Uspesan oporavak od greske prilikom dodele vrednosti"); :}						
+					;
+		  			
+		  			
+ActPars ::= (ActualParameters) ActParsList
+		 |  (NoActualParemters) /* epsilon */
+		 ;
+		 
+ActParsList ::= (ActualParametersList) Expr COMMA ActParsList
+			 |	 (SingleActualParameter) Expr
+			 ;
+
+Expr ::= (AddExpr) Expr Addop Term
+	 |   (TermExprPlus) Term
+	 |	 (TermEpxrMinus) MINUS Term
+	 ;
+	 			  
+Condition ::= (Conditions) Condition OR CondTerm
+			| (SingleCondition) CondTerm
+			;
+			
+CondTerm ::= (ConditionTerm) CondTerm AND CondFact
+		 | (SingleCondTerm) CondFact
+		 ;
+		 
+CondFact ::= (RelopFact) Expr Relop Expr
+		 |   (ExprFact) Expr
+		 ;
+
+Term ::= (MulTerm) Term Mulop Factor
+	 |   (SingleFactor) Factor
+	 ;
+	 
+Factor ::= (VariableFactor) Designator
+	   | (FuncCallFactor)  Designator StartOfFunc LEFT_PARENTHES ActPars RIGHT_PARENTHES
+	   | (ConstantFactor) ConstValue
+	   | (NewFactor) NEW Type
+	   | (NewFactorArray) NEW Type LEFT_BRACKET Expr RIGHT_BRACKET
+	   | (ExprFactor) LEFT_PARENTHES Expr RIGHT_PARENTHES
+	   | (EnumValues) IDENT:enumName PERIOD VALUES LEFT_PARENTHES RIGHT_PARENTHES
+	   ;
+	   
+Designator ::=  (DesignatorIdent) IDENT:designatorName
+		   |    (DesignatorEnum) IDENT:enumName PERIOD IDENT:enumValue
+		   |    (DesignatorArray) Designator LEFT_BRACKET Expr RIGHT_BRACKET
+		   ;
+
+Assignop ::= (Assign) ASSIGN;
+
+Relop ::=  (Equal) EQUAL
+	  |    (NotEqual) NOT_EQUAL
+	  |    (Greater) GREATER
+	  |    (GreaterEqual) GREATER_EQUAL
+	  |    (Less) LESS
+	  |    (LessEqual) LESS_EQUAL
+	  ;
+	  
+Addop ::= (Plus) PLUS
+	  |   (Minus) MINUS
+	  ;
+	  
+Mulop ::= (Mul) MUL
+	  |   (Div) DIV
+	  |   (Mod) MOD
+	  ;
+
+StartOfFunc ::= (StartOfFunc) /*epsilon*/;
+
+		  
+		  
+		  
